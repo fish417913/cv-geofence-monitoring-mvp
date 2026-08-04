@@ -32,40 +32,55 @@ Advanced capabilities such as biometric identification, gait recognition, cross-
 
 ---
 
-## Current Status
+Current Status
 
-**Current milestone:** Single-frame person-detection prototype completed.
+Current milestone: Models, geometry, and geofence-crossing foundation completed.
 
-The current prototype can:
+The project now includes a modular Python package under:
 
-- Open and inspect a prerecorded video with OpenCV.
-- Read the video's resolution, frame rate, frame count, and approximate duration.
-- Extract and save a frame from the video.
-- Load a pretrained Ultralytics YOLO object-detection model.
-- Detect and classify people in the extracted frame.
-- Extract confidence scores and bounding-box coordinates.
-- Calculate center points for detected objects.
-- Calculate Intersection over Union between bounding boxes.
-- Identify highly overlapping duplicate predictions.
-- Suppress the lower-confidence member of a duplicate pair.
-- Draw cleaned bounding boxes, labels, and center points.
-- Save a cleaned annotated evidence image.
+src/geofence_monitor/
 
-The current prototype does **not yet**:
+The current implementation can:
 
-- Process the entire video
-- Assign persistent tracking IDs
-- Draw or save a geofence
-- Detect geofence crossings
-- Classify crossings as entry or exit
-- Generate event records
-- Provide an event-review interface
+Open and inspect a prerecorded video with OpenCV.
+Extract a representative frame.
+Run pretrained YOLO object detection.
+Extract classes, confidence scores, and bounding boxes.
+Convert raw YOLO bounding-box arrays into validated application models.
+Calculate bounding-box dimensions and center points.
+Calculate bottom-center anchor points for ground-level geofence analysis.
+Calculate Intersection over Union between bounding boxes.
+Identify and suppress highly overlapping same-class predictions.
+Define and validate a static polygon geofence.
+Determine whether a point is inside, outside, or on the geofence boundary.
+Maintain independent geofence state for multiple tracking IDs.
+Detect entry and exit transitions.
+Preserve confirmed state across boundary observations.
+Prevent repeated events while an object remains inside or outside.
+Debounce unstable location changes near the geofence boundary.
+Record the last frame in which each track was observed.
+Remove stale tracking states.
+Generate structured crossing-event records.
+Draw cleaned bounding boxes, labels, and center points.
+Save a cleaned annotated evidence image.
+Verify the models, geometry, and crossing logic through automated tests.
 
+The current implementation does not yet:
+
+Process the entire video through the modular pipeline.
+Assign persistent tracking IDs with ByteTrack.
+Connect real tracked video observations to the crossing engine.
+Allow the user to draw the polygon through an interface.
+Generate event-specific evidence images.
+Store crossing events in SQLite.
+Produce an annotated output video.
+Provide a Streamlit event-review interface.
 ---
 
-## Current Prototype Pipeline
+Current Implemented Pipeline
 
-```text
+The current single-frame prototype follows this workflow:
+
 Prerecorded video
         |
         v
@@ -75,20 +90,49 @@ OpenCV video inspection
 Single-frame extraction
         |
         v
-YOLO person detection
+YOLO object detection
         |
         v
-Bounding boxes and confidence scores
+Raw Ultralytics bounding boxes
         |
         v
-IoU-based duplicate analysis
+BoundingBox adapter
+        |
+        v
+Shared geometry functions
+        |
+        v
+IoU duplicate analysis
         |
         v
 Class-aware duplicate suppression
         |
         v
 Cleaned annotated image
-```
+
+The tested geofence-processing foundation follows this workflow:
+
+TrackObservation
+        |
+        v
+Bounding-box bottom-center
+        |
+        v
+Point-in-polygon classification
+        |
+        v
+Per-track geofence state
+        |
+        v
+Debounced transition detection
+        |
+        v
+ENTRY / EXIT / no event
+        |
+        v
+CrossingEvent
+
+The next implementation milestone will connect these two workflows through full-video reading and ByteTrack object tracking.
 
 ---
 
@@ -540,27 +584,114 @@ For each candidate detection:
 
 ---
 
-## Project Structure
-
-```text
+Project Structure
 cv-geofence-monitoring-mvp/
 ├── .gitignore
 ├── README.md
 ├── requirements.txt
+├── requirements-dev.txt
 ├── smoke_test.py
 ├── inspect_video.py
 ├── detect_frame.py
 ├── docs/
+│   └── architecture.md
+├── src/
+│   └── geofence_monitor/
+│       ├── __init__.py
+│       ├── models.py
+│       ├── geometry.py
+│       └── crossing.py
+├── tests/
+│   ├── test_models.py
+│   ├── test_geometry.py
+│   └── test_crossing.py
 ├── data/
 │   ├── input/
 │   │   └── .gitkeep
 │   └── output/
 │       └── .gitkeep
 └── runs/
-```
 
-Generated videos, images, model weights, and caches are excluded from version control.
+Generated videos, images, model weights, Python bytecode, test caches, and local environment files are excluded from version control.
 
+Package Responsibilities
+src/geofence_monitor/models.py
+
+Defines validated application data structures and enums, including:
+
+BoundingBox
+Point
+Geofence
+TrackObservation
+TrackGeofenceState
+CrossingEvent
+PointLocation
+CrossingDirection
+src/geofence_monitor/geometry.py
+
+Provides reusable geometric operations, including:
+
+Bounding-box width and height
+Bounding-box center
+Bottom-center anchor
+Intersection over Union
+Polygon point-location classification
+src/geofence_monitor/crossing.py
+
+Provides geofence-state and crossing logic, including:
+
+Direct transition classification
+Boundary-state handling
+Per-track state management
+Multiple-track isolation
+Entry and exit detection
+Debouncing
+Duplicate-event prevention
+Last-seen frame recording
+Stale-track cleanup
+Structured crossing-event generation
+detect_frame.py
+
+Runs the original single-frame YOLO experiment.
+
+The script now imports the shared BoundingBox model and calculate_iou() function instead of maintaining a separate IoU implementation.
+---
+Automated Testing
+
+The project uses pytest for automated testing.
+
+Install the development dependencies with:
+
+python -m pip install -r requirements-dev.txt
+
+Run the complete test suite from the repository root:
+
+PYTHONPATH=src python -m pytest tests -v
+
+Current result:
+
+60 passed
+
+The test suite currently covers:
+
+Bounding-box construction and validation
+Point construction and validation
+Bounding-box dimensions
+Center and bottom-center calculations
+Intersection over Union
+Polygon-geofence validation
+Inside, outside, edge, and vertex classifications
+Entry and exit transition rules
+Boundary-frame handling
+Multiple independent tracking IDs
+Observation-to-crossing integration
+Structured event generation
+Duplicate-event prevention
+Crossing debouncing
+Candidate-state cancellation
+Last-seen frame recording
+Stale-track cleanup
+Invalid configuration handling
 ---
 
 ## Script Responsibilities

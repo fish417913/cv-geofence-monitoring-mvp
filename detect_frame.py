@@ -1,49 +1,37 @@
 from pathlib import Path
 
+from geofence_monitor.geometry import calculate_iou
+from geofence_monitor.models import BoundingBox
+
 import cv2
 from ultralytics import YOLO
 
-def calculate_iou(box_a, box_b):
-    """Calculate Intersection over Union for two xyxy bounding boxes."""
-    ax1, ay1, ax2, ay2 = box_a
-    bx1, by1, bx2, by2 = box_b
+def to_bounding_box(raw_box: list[float]) -> BoundingBox:
+    """Convert an xyxy coordinate list into a BoundingBox"""
 
-    intersection_x1 = max(ax1, bx1)
-    intersection_y1 = max(ay1, by1)
-    intersection_x2 = min(ax2, bx2)
-    intersection_y2 = min(ay2, by2)
+    return BoundingBox(
+        x1=raw_box[0],
+        y1=raw_box[1],
+        x2=raw_box[2],
+        y2=raw_box[3]
+    )
 
-    intersection_width = max(0.0, intersection_x2 - intersection_x1)
-    intersection_height = max(0.0, intersection_y2 - intersection_y1)
-
-    intersection_area = intersection_width * intersection_height
-
-    box_a_area = (ax2 - ax1) * (ay2 - ay1)
-    box_b_area = (bx2 - bx1) * (by2 - by1)
-
-    union_area = box_a_area + box_b_area - intersection_area
-
-    if union_area <= 0:
-        return 0.0
-
-    return intersection_area / union_area
 
 def suppress_duplicate_detections(
     boxes,
     confidences,
     class_ids,
-    iou_threshold=0.80
+    iou_threshold=0.80,
 ):
     """
     Retain high-confidence detections and suppress highly overlapping
     detections of the same object class.
     """
 
-    # Process the highest-confidence detections first.
     confidence_order = sorted(
         range(len(boxes)),
         key=lambda index: confidences[index],
-        reverse=True
+        reverse=True,
     )
 
     kept_indices = []
@@ -53,13 +41,20 @@ def suppress_duplicate_detections(
         duplicate_found = False
 
         for kept_index in kept_indices:
-            # Only compare detections belonging to the same class
             if class_ids[candidate_index] != class_ids[kept_index]:
                 continue
 
-            overlap = calculate_iou(
-                boxes[candidate_index],
+            candidate_box = to_bounding_box(
+                boxes[candidate_index]
+            )
+
+            kept_box = to_bounding_box(
                 boxes[kept_index]
+            )
+
+            overlap = calculate_iou(
+                candidate_box,
+                kept_box,
             )
 
             if overlap >= iou_threshold:
@@ -69,7 +64,7 @@ def suppress_duplicate_detections(
                     {
                         "suppressed_index": candidate_index,
                         "kept_index": kept_index,
-                        "iou": overlap
+                        "iou": overlap,
                     }
                 )
 
@@ -155,9 +150,17 @@ duplicate_found = False
 
 for first_index in range(len(boxes)):
     for second_index in range(first_index + 1, len(boxes)):
-        overlap = calculate_iou(
-            boxes[first_index],
+        first_box = to_bounding_box(
+            boxes[first_index]
+        )
+
+        second_box = to_bounding_box(
             boxes[second_index]
+        )
+
+        overlap = calculate_iou(
+            first_box,
+            second_box,
         )
 
         if overlap >= 0.80:
@@ -222,7 +225,7 @@ for original_index in kept_indices:
     y2_int = int(round(y2))
 
     center_x = int(round((x1 + x2) / 2))
-    center_y = int(round(y1 + y2) / 2)
+    center_y = int(round((y1 + y2) / 2))
 
     label = f"{class_name} {confidence:.2f}"
 
