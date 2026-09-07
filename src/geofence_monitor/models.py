@@ -71,7 +71,7 @@ class TrackObservation:
     
     track_id: int 
     class_id: int 
-    class_name: int 
+    class_name: str  
     confidence: float 
     bounding_box: BoundingBox 
     frame_number: int 
