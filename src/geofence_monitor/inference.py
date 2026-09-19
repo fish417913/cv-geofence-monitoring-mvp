@@ -2,6 +2,10 @@ import cv2
 import torch 
 
 from geofence_monitor.ingestion import iter_video_frames
+from geofence_monitor.tracking import (
+    detections_to_supervision,
+    tracked_detections_to_observations
+)
 
 from torchvision.models.detection import (
     FasterRCNN_MobileNet_V3_Large_320_FPN_Weights,
@@ -52,7 +56,8 @@ def infer_video(
     categories,
     confidence_threshold=0.50,
     allowed_classes=None,
-    device="cpu"
+    device="cpu",
+    tracker=None
     ):
     
     """Run filtered object detection over every frame in a video."""
@@ -76,11 +81,25 @@ def infer_video(
                 allowed_classes=allowed_classes
             )
             
+            tracked_observations = []
+            
+            if tracker is not None:
+                tracked = tracker.update(
+                    detections_to_supervision(detections)
+                )
+                
+                tracked_observations = tracked_detections_to_observations(
+                    tracked,
+                    frame_number=video_frame.frame_number,
+                    timestamp_seconds=video_frame.timestamp_seconds
+                )
+            
             results.append(
                 {
                     "frame_number": video_frame.frame_number,
                     "timestamp_seconds": video_frame.timestamp_seconds,
-                    "detections": detections
+                    "detections": detections,
+                    "tracked_observations": tracked_observations
                 }
             )
         
@@ -111,6 +130,7 @@ def filter_detections(
         
         detections.append(
             {
+                "class_id": label.item(),
                 "class_name": class_name, 
                 "confidence": score.item(),
                 "bbox_xyxy": box.tolist()

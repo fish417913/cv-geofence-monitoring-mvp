@@ -5,6 +5,8 @@ import cv2
 import torch 
 import pytest 
 
+from trackers import ByteTrackTracker
+
 from geofence_monitor.inference import (
     frame_to_tensor, run_inference, infer_frame, infer_video, filter_detections
 )
@@ -105,6 +107,36 @@ def test_infer_video_returns_one_output_per_frame(tmp_path):
     assert results[0]["detections"][0]["class_name"] == "person"
     assert results[0]["detections"][0]["confidence"] == pytest.approx(0.90)
     
+def test_infer_video_returns_tracked_observations(tmp_path):
+    video_path = tmp_path / "test_video.avi"
+    create_test_video(video_path)
+    
+    model = DummyDetector()
+    categories = {1: "person"}
+    
+    tracker = ByteTrackTracker(
+        minimum_consecutive_frames=1
+    )
+    
+    results = infer_video(
+        model,
+        video_path,
+        categories,
+        confidence_threshold=0.50,
+        allowed_classes={"person"},
+        tracker=tracker
+    )
+    
+    assert results[0]["tracked_observations"] == []
+    
+    assert len(results[1]["tracked_observations"]) == 1
+    assert len(results[2]["tracked_observations"]) == 1
+    
+    track_id_1 = results[1]["tracked_observations"][0].track_id 
+    track_id_2 = results[2]["tracked_observations"][0].track_id
+    
+    assert track_id_1 == track_id_2
+    
 def test_filter_detections_applies_confidence_and_class_filters():
     output = {
         "boxes": torch.tensor([
@@ -133,6 +165,25 @@ def test_filter_detections_applies_confidence_and_class_filters():
     assert detections[0]["class_name"] == "person"
     assert detections[0]["confidence"] == pytest.approx(0.90)
     assert detections[0]["bbox_xyxy"] == [10.0, 10.0, 30.0, 40.0]
+    
+def test_filter_detections_preserves_class_id():
+    output = {
+        "labels": torch.tensor([1]),
+        "scores": torch.tensor([0.90]),
+        "boxes": torch.tensor([
+            [10.0, 20.0, 30.0, 40.0]
+        ])
+    }
+    
+    categories = ["__background__", "person"]
+    
+    detections = filter_detections(
+        output,
+        categories,
+        confidence_threshold=0.50
+    )
+    
+    assert detections[0]["class_id"] == 1
 
 def test_filter_detections_keeps_multiple_valid_detections():
     output = {
