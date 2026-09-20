@@ -51,59 +51,80 @@ def infer_frame(model, frame, device="cpu"):
     return output 
 
 def infer_video(
-    model, 
-    video_path, 
+    model,
+    video_path,
     categories,
     confidence_threshold=0.50,
     allowed_classes=None,
     device="cpu",
-    tracker=None
-    ):
-    
+    tracker=None,
+    geofence=None,
+    crossing_engine=None
+):
     """Run filtered object detection over every frame in a video."""
+
     results = []
-    
+
     model = model.to(device)
     model.eval()
-    
+
     with torch.inference_mode():
         for video_frame in iter_video_frames(video_path):
             tensor = frame_to_tensor(video_frame.frame)
             tensor = tensor.to(device)
-            
-            
+
             output = model([tensor])[0]
-            
+
             detections = filter_detections(
                 output,
                 categories,
                 confidence_threshold=confidence_threshold,
                 allowed_classes=allowed_classes
             )
-            
+
             tracked_observations = []
-            
+
             if tracker is not None:
                 tracked = tracker.update(
                     detections_to_supervision(detections)
                 )
-                
-                tracked_observations = tracked_detections_to_observations(
-                    tracked,
-                    frame_number=video_frame.frame_number,
-                    timestamp_seconds=video_frame.timestamp_seconds
+
+                tracked_observations = (
+                    tracked_detections_to_observations(
+                        tracked,
+                        frame_number=video_frame.frame_number,
+                        timestamp_seconds=video_frame.timestamp_seconds
+                    )
                 )
-            
+
+            crossing_events = []
+
+            if (
+                geofence is not None
+                and crossing_engine is not None
+            ):
+                for observation in tracked_observations:
+                    event = crossing_engine.process_observation(
+                        observation=observation,
+                        geofence=geofence
+                    )
+
+                    if event is not None:
+                        crossing_events.append(event)
+
             results.append(
                 {
                     "frame_number": video_frame.frame_number,
-                    "timestamp_seconds": video_frame.timestamp_seconds,
+                    "timestamp_seconds": (
+                        video_frame.timestamp_seconds
+                    ),
                     "detections": detections,
-                    "tracked_observations": tracked_observations
+                    "tracked_observations": tracked_observations,
+                    "crossing_events": crossing_events
                 }
             )
-        
-    return results 
+
+    return results
 
 def filter_detections(
     output,

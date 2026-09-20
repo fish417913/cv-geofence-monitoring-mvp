@@ -7,9 +7,13 @@ import pytest
 
 from trackers import ByteTrackTracker
 
+from geofence_monitor.crossing import CrossingEngine 
+
 from geofence_monitor.inference import (
     frame_to_tensor, run_inference, infer_frame, infer_video, filter_detections
 )
+
+from geofence_monitor.models import CrossingDirection, Geofence, Point 
 
 def test_frame_to_tensor_converts_shape_and_dtype():
     frame = np.zeros((48,64,3), dtype=np.uint8)
@@ -44,6 +48,39 @@ class DummyDetector(torch.nn.Module):
             "scores": torch.tensor(
                 [0.90],
                 device=device 
+            )
+        }]
+        
+class MovingDummyDetector(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.frame_index = 0
+        
+    def forward(self, images):
+        device = images[0].device
+        
+        boxes = [
+            [2.0, 8.0, 22.0, 36.0],
+            [4.0, 8.0, 24.0, 36.0],
+            [8.0, 8.0, 28.0, 36.0]
+        ]
+        
+        box = boxes[self.frame_index]
+        self.frame_index += 1
+        
+        return [{
+            "boxes": torch.tensor(
+                [box],
+                device=device
+            ),
+            "labels": torch.tensor(
+                [1],
+                dtype=torch.int64,
+                device=device
+            ),
+            "scores": torch.tensor(
+                [0.90],
+                device=device
             )
         }]
     
@@ -223,3 +260,51 @@ def test_filter_detections_returns_empty_list_when_none_pass():
     )
 
     assert detections == []
+    
+def test_infer_video_generates_geofence_entry_event(tmp_path):
+    video_path = tmp_path / "test_video.avi"
+    create_test_video(video_path)
+    
+    model = MovingDummyDetector()
+    categories = {1: "person"}
+    
+    tracker = ByteTrackTracker(
+        minimum_consecutive_frames=1
+    )
+    
+    geofence = Geofence(
+        geofence_id="test_zone",
+        name="Test Zone",
+        points=(
+            Point(x=16.0, y=0.0),
+            Point(x=60.0, y=0.0),
+            Point(x=60.0, y=47.0),
+            Point(x=16.0, y=47.0)
+        ),
+        frame_width=64,
+        frame_height=48
+    )
+    
+    crossing_engine = CrossingEngine()
+    
+    results = infer_video(
+        model,
+        video_path,
+        categories,
+        confidence_threshold=0.50,
+        allowed_classes={"person"},
+        tracker=tracker,
+        geofence=geofence,
+        crossing_engine=crossing_engine
+    )
+    
+    assert results[0]["crossing_events"] == []
+    assert results[1]["crossing_events"] == []
+    
+    assert len(results[2]["crossing_events"]) == 1
+    
+    event = results[2]["crossing_events"][0]
+    
+    assert event.object_class == "person"
+    assert event.direction is CrossingDirection.ENTRY
+    assert event.frame_number == 2
