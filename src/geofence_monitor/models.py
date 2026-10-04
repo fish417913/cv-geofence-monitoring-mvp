@@ -39,7 +39,7 @@ class TrackGeofenceState:
     """Geofence state maintained for one tracked object"""
     
     last_confirmed_location: PointLocation | None = None 
-    candidate_location: Point | None = None 
+    candidate_location: PointLocation | None = None 
     candidate_frame_count: int = 0
     last_seen_frame: int | None = None 
 

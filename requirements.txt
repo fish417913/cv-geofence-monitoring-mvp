@@ -4,3 +4,6 @@ torch==2.13.0
 torchvision==0.28.0
 trackers==2.6.0
 supervision==0.30.4
+streamlit==1.65.0
+streamlit-drawable-canvas==0.13.0
+pillow==12.3.0
