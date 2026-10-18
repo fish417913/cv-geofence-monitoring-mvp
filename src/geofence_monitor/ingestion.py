@@ -39,3 +39,22 @@ def iter_video_frames(video_path: Path) -> Iterator[VideoFrame]:
             
     finally:
         capture.release()
+        
+def get_video_frame(
+    video_path: Path,
+    frame_number: int
+) -> VideoFrame:
+    """Return one video frame by frame number"""
+    
+    if frame_number < 0:
+        raise ValueError(
+            "frame_number must be zero or greater."
+        )
+        
+    for video_frame in iter_video_frames(video_path):
+        if video_frame.frame_number == frame_number:
+            return video_frame
+        
+    raise IndexError(
+        f"Frame {frame_number} does not exist in {video_path}."
+    )

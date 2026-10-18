@@ -100,3 +100,25 @@ def locate_point_in_geofence(
         return PointLocation.OUTSIDE
     
     return PointLocation.BOUNDARY
+
+def signed_distance_to_geofence(
+    point: Point,
+    geofence: Geofence
+) -> float:
+    """Return signed pixel distance from a point to the geofence boundary."""
+    
+    contour = np.array(
+        [
+            [vertex.x, vertex.y]
+            for vertex in geofence.points
+        ],
+        dtype=np.float32
+    )
+    
+    return float(
+        cv2.pointPolygonTest(
+            contour,
+            (point.x, point.y),
+            measureDist=True
+        )
+    )

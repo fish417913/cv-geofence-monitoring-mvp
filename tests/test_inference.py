@@ -308,3 +308,21 @@ def test_infer_video_generates_geofence_entry_event(tmp_path):
     assert event.object_class == "person"
     assert event.direction is CrossingDirection.ENTRY
     assert event.frame_number == 2
+    
+def test_infer_video_respects_max_frames(tmp_path):
+    video_path = tmp_path / "test_vide.avi"
+    create_test_video(video_path)
+    
+    model = DummyDetector()
+    categories = {1: "person"}
+    
+    results = infer_video(
+        model,
+        video_path,
+        categories,
+        max_frames=2
+    )
+    
+    assert len(results) == 2
+    assert results[0]["frame_number"] == 0
+    assert results[1]["frame_number"] == 1

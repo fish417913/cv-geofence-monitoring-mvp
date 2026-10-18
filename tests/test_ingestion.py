@@ -5,7 +5,7 @@ from pathlib import Path
 import cv2 
 import numpy as np 
 
-from geofence_monitor.ingestion import iter_video_frames
+from geofence_monitor.ingestion import iter_video_frames, get_video_frame 
 
 def create_test_video(video_path: Path) -> None:
     """Create a three-frame, 10 FPS video for testing."""
@@ -50,3 +50,25 @@ def test_iter_video_frames_rejects_missing_file(tmp_path: Path) -> None:
         match="Video not found"
     ):
         list(iter_video_frames(video_path))
+        
+def test_get_video_frame_returns_requested_frame(tmp_path):
+    video_path = tmp_path / "test_video.avi"
+    create_test_video(video_path)
+    
+    video_frame = get_video_frame(
+        video_path=video_path,
+        frame_number=1
+    )
+    
+    assert video_frame.frame_number == 1
+    assert video_frame.timestamp_seconds == pytest.approx(0.1)
+    
+def test_get_video_frame_rejects_negative_frame_number(tmp_path):
+    video_path = tmp_path / "test_video.avi"
+    create_test_video(video_path)
+    
+    with pytest.raises(ValueError):
+        get_video_frame(
+            video_path=video_path,
+            frame_number=-1
+        )

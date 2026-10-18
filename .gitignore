@@ -19,6 +19,7 @@ data/input/*
 
 data/output/*
 !data/output/.gitkeep
+data/geofence.json
 
 # Downloaded smoke-test image
 /bus.jpg

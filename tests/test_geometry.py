@@ -6,7 +6,8 @@ from geofence_monitor.geometry import (
     box_height,
     box_width,
     calculate_iou,
-    locate_point_in_geofence
+    locate_point_in_geofence,
+    signed_distance_to_geofence
 )
 
 from geofence_monitor.models import (
@@ -182,3 +183,30 @@ def test_point_on_geofence_vertex() -> None:
     )
     
     assert result is PointLocation.BOUNDARY
+    
+def test_signed_distance_to_geofence_boundary():
+    geofence = Geofence(
+        geofence_id="test_zone",
+        name="Test Zone",
+        points=(
+            Point(10.0, 10.0),
+            Point(50.0, 10.0),
+            Point(50.0, 50.0),
+            Point(10.0, 50.0)
+        ),
+        frame_width=100,
+        frame_height=100,
+    )
+    
+    inside_distance = signed_distance_to_geofence(
+        Point(30.0, 30.0),
+        geofence
+    )
+    
+    outside_distance = signed_distance_to_geofence(
+        Point(30.0, 60.0),
+        geofence,
+    )
+    
+    assert inside_distance > 0
+    assert outside_distance < 0 

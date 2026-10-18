@@ -59,7 +59,8 @@ def infer_video(
     device="cpu",
     tracker=None,
     geofence=None,
-    crossing_engine=None
+    crossing_engine=None,
+    max_frames=None
 ):
     """Run filtered object detection over every frame in a video."""
 
@@ -123,6 +124,12 @@ def infer_video(
                     "crossing_events": crossing_events
                 }
             )
+            
+            if (
+                max_frames is not None 
+                and len(results) >= max_frames 
+            ):
+                break 
 
     return results
 
